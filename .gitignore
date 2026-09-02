@@ -1,0 +1,14 @@
+.metadata/
+.recommenders/
+Debug/
+Release/
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.su
+*.d
+*.log
+*.tmp
+
