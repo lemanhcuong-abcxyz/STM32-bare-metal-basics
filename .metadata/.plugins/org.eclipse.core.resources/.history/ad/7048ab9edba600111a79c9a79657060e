@@ -1,0 +1,74 @@
+#include <stdint.h>
+#include <stdio.h>
+
+/* Định nghĩa địa chỉ thanh ghi cứng của STM32F411RE */
+#define RCC_BASE        0x40023800U
+#define GPIOA_BASE      0x40020000U
+#define USART2_BASE     0x40004400U
+
+#define RCC_AHB1ENR     *(volatile uint32_t *)(RCC_BASE + 0x30U)
+#define RCC_APB1ENR     *(volatile uint32_t *)(RCC_BASE + 0x40U)
+
+#define GPIOA_MODER     *(volatile uint32_t *)(GPIOA_BASE + 0x00U)
+#define GPIOA_AFRL      *(volatile uint32_t *)(GPIOA_BASE + 0x20U)
+
+#define USART2_SR       *(volatile uint32_t *)(USART2_BASE + 0x00U)
+#define USART2_DR       *(volatile uint32_t *)(USART2_BASE + 0x04U)
+#define USART2_BRR      *(volatile uint32_t *)(USART2_BASE + 0x08U)
+#define USART2_CR1      *(volatile uint32_t *)(USART2_BASE + 0x0CU)
+
+#define USART_SR_TXE    (1U << 7)
+#define USART_CR1_TE    (1U << 3)
+#define USART_CR1_RE    (1U << 2)
+#define USART_CR1_UE    (1U << 13)
+
+void UART2_Init(uint32_t baudrate) {
+    // 1. Bật clock cho GPIOA và USART2
+    RCC_AHB1ENR |= (1U << 0);  // GPIOAEN
+    RCC_APB1ENR |= (1U << 17); // USART2EN
+
+    // 2. Cấu hình PA2 (TX) và PA3 (RX) sang Alternate Function (AF7)
+    GPIOA_MODER &= ~((3U << 4) | (3U << 6));
+    GPIOA_MODER |=  ((2U << 4) | (2U << 6));
+
+    GPIOA_AFRL &= ~((0xFU << 8) | (0xFU << 12));
+    GPIOA_AFRL |=  ((7U << 8) | (7U << 12));
+
+    // 3. Cài đặt Baudrate (HSI = 16MHz)
+    uint32_t pclk1 = 16000000U;
+    USART2_BRR = (pclk1 + (baudrate / 2U)) / baudrate;
+
+    // 4. Bật TE, RE và USART2
+    USART2_CR1 |= USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
+}
+
+void UART2_SendChar(char c) {
+    while (!(USART2_SR & USART_SR_TXE));
+    USART2_DR = (uint8_t)c;
+}
+
+int _write(int file, char *ptr, int len) {
+    (void)file;
+    for (int i = 0; i < len; i++) {
+        if (ptr[i] == '\n') {
+            UART2_SendChar('\r');
+        }
+        UART2_SendChar(ptr[i]);
+    }
+    return len;
+}
+
+int main(void) {
+    setvbuf(stdout, NULL, _IONBF, 0);
+    UART2_Init(115200);
+
+    printf("\n=====================================\n");
+    printf("  CHAO MANG BAN DEN VOI STM32F411RE! \n");
+    printf("=====================================\n");
+
+    int counter = 0;
+    while (1) {
+        printf("[DEBUG] Uptime: %d giay\n", counter++);
+        for (volatile int i = 0; i < 2000000; i++);
+    }
+}

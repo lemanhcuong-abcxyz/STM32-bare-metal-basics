@@ -1,0 +1,77 @@
+#include <stdint.h> // Thu viện định nghĩa các kiểu số nguyên cố định như uint32_t, uint8_t
+#include <stdio.h>  // Thư viện nhập xuất chuẩn dùng cho hàm printf và setvbuf
+
+// Định nghĩa địa chỉ gốc (Base Address) của các khối phần cứng trong STM32F411RE
+#define RCC_BASE        0x40023800U // Địa chỉ khối Reset and Clock Control
+#define GPIOA_BASE      0x40020000U // Địa chỉ khối Cổng GPIOA
+#define USART2_BASE     0x40004400U // Địa chỉ khối Bộ giao tiếp USART2
+
+// Định nghĩa các thanh ghi quản lý Clock và GPIO
+#define RCC_AHB1ENR     *(volatile uint32_t *)(RCC_BASE + 0x30U) // Thanh ghi bật Clock cho Bus AHB1 (GPIOA)
+#define RCC_APB1ENR     *(volatile uint32_t *)(RCC_BASE + 0x40U) // Thanh ghi bật Clock cho Bus APB1 (USART2)
+#define GPIOA_MODER     *(volatile uint32_t *)(GPIOA_BASE + 0x00U) // Thanh ghi cấu hình chế độ chân GPIOA
+#define GPIOA_AFRL      *(volatile uint32_t *)(GPIOA_BASE + 0x20U) // Thanh ghi chọn chức năng phụ AF (PA0 - PA7)
+
+// Định nghĩa các thanh ghi của bộ USART2
+#define USART2_SR       *(volatile uint32_t *)(USART2_BASE + 0x00U) // Thanh ghi trạng thái (Status Register)
+#define USART2_DR       *(volatile uint32_t *)(USART2_BASE + 0x04U) // Thanh ghi dữ liệu (Data Register)
+#define USART2_BRR      *(volatile uint32_t *)(USART2_BASE + 0x08U) // Thanh ghi cài đặt Baudrate
+#define USART2_CR1      *(volatile uint32_t *)(USART2_BASE + 0x0CU) // Thanh ghi điều khiển 1 (Control Register 1)
+
+// Định nghĩa các bit chức năng
+#define USART_SR_TXE    (1U << 7)  // Bit báo Thanh ghi dữ liệu truyền đã trống
+#define USART_CR1_TE    (1U << 3)  // Bit cho phép Bộ truyền UART hoạt động
+#define USART_CR1_RE    (1U << 2)  // Bit cho phép Bộ nhận UART hoạt động
+#define USART_CR1_UE    (1U << 13) // Bit bật Module USART2
+
+// Hàm khởi tạo UART2 với tốc độ Baud truyền vào
+void UART2_Init(uint32_t baudrate) {
+    RCC_AHB1ENR |= (1U << 0);  // Bật Clock cấp cho khối GPIOA
+    RCC_APB1ENR |= (1U << 17); // Bật Clock cấp cho khối USART2
+
+    GPIOA_MODER &= ~((3U << 4) | (3U << 6)); // Xóa cấu hình cũ của chân PA2 và PA3
+    GPIOA_MODER |=  ((2U << 4) | (2U << 6)); // Cấu hình chân PA2 và PA3 sang chế độ Alternate Function
+
+    GPIOA_AFRL &= ~((0xFU << 8) | (0xFU << 12)); // Xóa cấu hình chức năng phụ cũ của chân PA2 và PA3
+    GPIOA_AFRL |=  ((7U << 8) | (7U << 12));     // Gán chức năng phụ AF7 (USART2) cho PA2 (TX) và PA3 (RX)
+
+    uint32_t pclk1 = 16000000U;                         // Tần số Clock APB1 mặc định (HSI = 16MHz)
+    USART2_BRR = (pclk1 + (baudrate / 2U)) / baudrate; // Tính toán và nạp giá trị chia xung tạo Baudrate
+
+    USART2_CR1 |= USART_CR1_TE | USART_CR1_RE | USART_CR1_UE; // Bật Bộ truyền, Bộ nhận và kích hoạt USART2
+}
+
+// Hàm truyền 1 ký tự ra UART2
+void UART2_SendChar(char c) {
+    while (!(USART2_SR & USART_SR_TXE)); // Chờ cho đến khi thanh ghi dữ liệu truyền trống (TXE = 1)
+    USART2_DR = (uint8_t)c;              // Ghi ký tự vào thanh ghi DR để phát ra ngoài
+}
+
+// Hàm ghi đè system call `_write` của thư viện C chuẩn để chuyển hướng printf ra UART
+int _write(int file, char *ptr, int len) {
+    (void)file; // Bỏ qua tham số file để không báo lỗi warning
+    for (int i = 0; i < len; i++) { // Duyệt qua từng ký tự trong chuỗi printf cần in
+        if (ptr[i] == '\n') {
+            UART2_SendChar('\r'); // Tự động thêm '\r' trước '\n' để Terminal xuống hàng đúng vị trí
+        }
+        UART2_SendChar(ptr[i]); // Gửi từng ký tự qua UART2
+    }
+    return len; // Trả về số ký tự đã xử lý
+}
+
+// Hàm chính chạy chương trình
+int main(void) {
+    setvbuf(stdout, NULL, _IONBF, 0); // Tắt bộ đệm stdio để dữ liệu printf gửi ngay lập tức
+
+    UART2_Init(115200); // Khởi tạo UART2 chạy ở tốc độ 115200 bps
+
+    printf("\n=====================================\n"); // In tiêu đề chào mừng
+    printf("  CHAO MANG BAN DEN VOI STM32F411RE! \n");
+    printf("=====================================\n");
+
+    int counter = 0; // Biến đếm thời gian/vòng lặp
+    while (1) {      // Vòng lặp vô hạn của vi điều khiển
+        printf("[DEBUG] Uptime: %d giay\n", counter++); // In chuỗi log debug ra Terminal
+        for (volatile int i = 0; i < 2000000; i++);    // Vòng lặp delay thô khoảng 1 giây
+    }
+}

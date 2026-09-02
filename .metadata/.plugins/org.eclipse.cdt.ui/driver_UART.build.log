@@ -1,0 +1,10 @@
+21:51:03 **** Incremental Build of configuration Debug for project driver_UART ****
+make -j12 all 
+arm-none-eabi-size  driver_UART.elf 
+   text	   data	    bss	    dec	    hex	filename
+   5844	     92	   1900	   7836	   1e9c	driver_UART.elf
+Finished building: default.size.stdout
+ 
+
+21:51:03 Build Finished. 0 errors, 0 warnings. (took 76ms)
+

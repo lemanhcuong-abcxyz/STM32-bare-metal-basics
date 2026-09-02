@@ -1,0 +1,19 @@
+# Thư mục rác của IDE Eclipse / STM32CubeIDE
+.metadata/
+.recommenders/
+
+# File build xuất ra từ C/C++
+Debug/
+Release/
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.su
+*.d
+
+# Các file tạm khác
+*.log
+*.tmp
+
