@@ -40,7 +40,7 @@
 ```text
 PC13 → EXTI13
 
-
+---
 Sơ đồ đơn giản:
 
              STM32F411RE
