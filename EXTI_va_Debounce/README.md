@@ -38,9 +38,9 @@
 - Với nút USER trên NUCLEO-F411RE:
 
 ```text
-PC13 → EXTI13
+Kết quả đạt được: PC13 → EXTI13
 
----
+
 Sơ đồ đơn giản:
 
              STM32F411RE
